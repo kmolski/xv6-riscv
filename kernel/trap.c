@@ -3,11 +3,15 @@
 #include "memlayout.h"
 #include "riscv.h"
 #include "spinlock.h"
+#include "syscall.h"
 #include "proc.h"
 #include "defs.h"
 
 struct spinlock tickslock;
 uint ticks;
+
+struct spinlock readcountlock;
+uint readcount;
 
 extern char trampoline[], uservec[], userret[];
 
@@ -20,6 +24,7 @@ void
 trapinit(void)
 {
   initlock(&tickslock, "time");
+  initlock(&readcountlock, "readcount");
 }
 
 // set up to take exceptions and traps while in the kernel.
@@ -37,6 +42,7 @@ void
 usertrap(void)
 {
   int which_dev = 0;
+  int syscall_num = 0;
 
   if((r_sstatus() & SSTATUS_SPP) != 0)
     panic("usertrap: not from user mode");
@@ -55,6 +61,13 @@ usertrap(void)
 
     if(p->killed)
       exit(-1);
+
+    syscall_num = p->trapframe->a7;
+    if(syscall_num == SYS_read) {
+      acquire(&readcountlock);
+      ++readcount;
+      release(&readcountlock);
+    }
 
     // sepc points to the ecall instruction,
     // but we want to return to the next instruction.
