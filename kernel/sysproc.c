@@ -89,3 +89,22 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+
+uint64
+sys_settickets(void)
+{
+  int tickets;
+
+  argint(0, &tickets);
+  return set_tickets(myproc()->pid, tickets);
+}
+
+uint64
+sys_getpinfo(void)
+{
+  uint64 ps;
+
+  argaddr(0, &ps);
+  return fill_pstat(ps);
+}

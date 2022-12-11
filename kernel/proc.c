@@ -4,11 +4,15 @@
 #include "riscv.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "pstat.h"
 #include "defs.h"
 
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
+
+struct pstat pstat;
+struct spinlock pstat_lock;
 
 struct proc *initproc;
 
@@ -55,6 +59,11 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
+  }
+
+  initlock(&pstat_lock, "pstat_lock");
+  for (int i = 0; i < NPROC; ++i) {
+    pstat.inuse[i] = 0;
   }
 }
 
@@ -146,6 +155,15 @@ found:
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
 
+  // Initialize pstat structure
+  int i = p - proc;
+  acquire(&pstat_lock);
+  pstat.inuse[i] = 1;
+  pstat.tickets[i] = 1;
+  pstat.pid[i] = p->pid;
+  pstat.ticks[i] = 0;
+  release(&pstat_lock);
+
   return p;
 }
 
@@ -169,6 +187,11 @@ freeproc(struct proc *p)
   p->killed = 0;
   p->xstate = 0;
   p->state = UNUSED;
+
+  int i = p - proc;
+  acquire(&pstat_lock);
+  pstat.inuse[i] = 0;
+  release(&pstat_lock);
 }
 
 // Create a user page table for a given process, with no user memory,
@@ -680,4 +703,39 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+// Set the ticket count for the given process
+// Returns 0 on success, -1 on error.
+int
+set_tickets(int pid, int tickets)
+{
+  if (tickets < 1) { // ticket count cannot be less than one
+    return -1;
+  }
+
+  for (int i = 0; i < NPROC; ++i) {
+    struct proc *p = proc + i;
+    acquire(&p->lock);
+    if (p->pid == pid) {
+      acquire(&pstat_lock);
+      pstat.tickets[i] = tickets;
+      release(&pstat_lock);
+      release(&p->lock);
+      return 0;
+    }
+    release(&p->lock);
+  }
+  return -1; // process with given pid was not found
+}
+
+// Return process statistics to userspace
+// Returns 0 on success, -1 on error.
+int
+fill_pstat(uint64 ps)
+{
+  acquire(&pstat_lock);
+  int ret = copyout(myproc()->pagetable, ps, (char*) &pstat, sizeof pstat);
+  release(&pstat_lock);
+  return ret;
 }

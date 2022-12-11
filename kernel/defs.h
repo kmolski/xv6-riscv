@@ -4,6 +4,7 @@ struct file;
 struct inode;
 struct pipe;
 struct proc;
+struct pstat;
 struct spinlock;
 struct sleeplock;
 struct stat;
@@ -106,6 +107,8 @@ void            yield(void);
 int             either_copyout(int user_dst, uint64 dst, void *src, uint64 len);
 int             either_copyin(void *dst, int user_src, uint64 src, uint64 len);
 void            procdump(void);
+int             set_tickets(int, int);
+int             fill_pstat(uint64 ps);
 
 // swtch.S
 void            swtch(struct context*, struct context*);
