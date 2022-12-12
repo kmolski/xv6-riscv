@@ -126,6 +126,7 @@ UPROGS=\
 	$U/_ls\
 	$U/_mkdir\
 	$U/_prio\
+	$U/_prio_test\
 	$U/_ps\
 	$U/_rm\
 	$U/_sh\
