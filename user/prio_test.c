@@ -29,19 +29,19 @@ main(int argc, char *argv[])
 {
   if (fork() == 0) {
     prio_pids[0] = getpid();
-    char* args[] = {"prio", "10"};
+    char* args[] = {"prio", "1"};
     exec("prio", args);
   }
 
   if (fork() == 0) {
     prio_pids[1] = getpid();
-    char* args[] = {"prio", "20"};
+    char* args[] = {"prio", "2"};
     exec("prio", args);
   }
 
   if (fork() == 0) {
     prio_pids[2] = getpid();
-    char* args[] = {"prio", "30"};
+    char* args[] = {"prio", "3"};
     exec("prio", args);
   }
 
