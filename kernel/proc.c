@@ -120,6 +120,7 @@ allocproc(void)
 {
   struct proc *p;
 
+  acquire(&pstat_lock);
   for(p = proc; p < &proc[NPROC]; p++) {
     acquire(&p->lock);
     if(p->state == UNUSED) {
@@ -157,7 +158,6 @@ found:
 
   // Initialize pstat structure
   int i = p - proc;
-  acquire(&pstat_lock);
   pstat.inuse[i] = 1;
   pstat.tickets[i] = 1;
   pstat.pid[i] = p->pid;
@@ -469,28 +469,65 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+
+  uint64 rand, counter, winner;
+  uint64 seed = 1;
+
+  uint64 total_tickets;
   
   c->proc = 0;
-  for(;;){
+  for (;;) {
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
 
-    for(p = proc; p < &proc[NPROC]; p++) {
+    acquire(&pstat_lock);
+    total_tickets = 0;
+    for (int i = 0; i < NPROC; ++i) {
+      p = proc + i;
       acquire(&p->lock);
-      if(p->state == RUNNABLE) {
-        // Switch to chosen process.  It is the process's job
-        // to release its lock and then reacquire it
-        // before jumping back to us.
-        p->state = RUNNING;
-        c->proc = p;
-        swtch(&c->context, &p->context);
-
-        // Process is done running for now.
-        // It should have changed its p->state before coming back.
-        c->proc = 0;
+      if (p->state == RUNNABLE) {
+        total_tickets += pstat.tickets[i];
       }
       release(&p->lock);
     }
+
+    if (total_tickets > 0) {
+      seed ^= seed >> 12;
+      seed ^= seed << 25;
+      seed ^= seed >> 27;
+
+      rand = seed * 0x2545F4914F6CDD1DULL;
+      winner = rand % total_tickets;
+
+      counter = 0;
+
+      for (int i = 0; i < NPROC; ++i) {
+        p = proc + i;
+        acquire(&p->lock);
+        if (p->state == RUNNABLE) {
+          counter += pstat.tickets[i];
+          if (counter > winner) {
+            ++pstat.ticks[i];
+            release(&pstat_lock);
+            // Switch to chosen process.  It is the process's job
+            // to release its lock and then reacquire it
+            // before jumping back to us.
+            p->state = RUNNING;
+            c->proc = p;
+            swtch(&c->context, &p->context);
+
+            // Process is done running for now.
+            // It should have changed its p->state before coming back.
+            c->proc = 0;
+            release(&p->lock);
+            goto schedule_next;
+          }
+        }
+        release(&p->lock);
+      }
+    }
+    release(&pstat_lock);
+    schedule_next:
   }
 }
 
@@ -714,18 +751,19 @@ set_tickets(int pid, int tickets)
     return -1;
   }
 
+  acquire(&pstat_lock);
   for (int i = 0; i < NPROC; ++i) {
     struct proc *p = proc + i;
     acquire(&p->lock);
     if (p->pid == pid) {
-      acquire(&pstat_lock);
       pstat.tickets[i] = tickets;
-      release(&pstat_lock);
       release(&p->lock);
+      release(&pstat_lock);
       return 0;
     }
     release(&p->lock);
   }
+  release(&pstat_lock);
   return -1; // process with given pid was not found
 }
 
