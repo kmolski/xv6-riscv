@@ -4,32 +4,91 @@
 int
 main(int argc, char *argv[])
 {
-  //if (mprotect(0x1337, 1) != -1) {
-  //  printf("ERROR: mprotect: no error on unaligned address\n");
-  //}
+  printf("mprotect tests:\n");
+  if (mprotect((void*) 0, -1337) != -1) {
+    printf("  Negative length: FAIL\n");
+  } else {
+    printf("  Negative length: OK\n");
+  }
 
-  //if (mprotect(0, 1) != -1) {
-  //  printf("ERROR: mprotect: no error on unmapped address\n");
-  //}
+  if (mprotect((void*) 0, 0) != -1) {
+    printf("  Zero length: FAIL\n");
+  } else {
+    printf("  Zero length: OK\n");
+  }
+
+  if (mprotect((void*) 0x1337, 1) != -1) {
+    printf("  Unaligned address: FAIL\n");
+  } else {
+    printf("  Unaligned address: OK\n");
+  }
+
+  if (mprotect((void*) 0, 1) != -1) {
+    printf("  Unmapped address: FAIL\n");
+  } else {
+    printf("  Unmapped address: OK\n");
+  }
 
   int* ptr = malloc(sizeof(int));
-  printf("Unprotected read: %d\n", *ptr);
+  *ptr = 0;
 
   int pid;
   if ((pid = fork()) == 0) {
-    printf("Unprotected read: %d\n", *ptr);
+    printf("  Unprotected read: %s\n", (*ptr == 0) ? "OK" : "FAIL");
     exit(0);
   } else {
     wait(0);
   }
 
-  //mprotect((void*) ptr, 1);
+  int xstatus;
+  mprotect((void*) ptr, 1);
   if ((pid = fork()) == 0) {
-    printf("UNREACHABLE: %d\n", *ptr);
+    printf("  ptr value: %d\n", *ptr);
     exit(1);
   } else {
-    wait(0);
-    printf("UNREACHABLE: %d\n", *ptr);
+    wait(&xstatus);
+    if (xstatus == -1) { // kernel killed child
+      printf("  Protected read: OK\n");
+    } else {
+      printf("  Protected read: FAIL\n");
+    }
   }
-  exit(1);
+
+  printf("munprotect tests:\n");
+  if (munprotect((void*) 0, -1337) != -1) {
+    printf("  Negative length: FAIL\n");
+  } else {
+    printf("  Negative length: OK\n");
+  }
+
+  if (munprotect((void*) 0, 0) != -1) {
+    printf("  Zero length: FAIL\n");
+  } else {
+    printf("  Zero length: OK\n");
+  }
+
+  if (munprotect((void*) 0x1337, 1) != -1) {
+    printf("  Unaligned address: FAIL\n");
+  } else {
+    printf("  Unaligned address: OK\n");
+  }
+
+  if (munprotect((void*) 0, 1) != -1) {
+    printf("  Unmapped address: FAIL\n");
+  } else {
+    printf("  Unmapped address: OK\n");
+  }
+
+  munprotect((void*) ptr, 1);
+  if ((pid = fork()) == 0) {
+    printf("  Read after munprotect: %s\n", (*ptr == 0) ? "OK" : "FAIL");
+    exit(1);
+  } else {
+    wait(&xstatus);
+    if (xstatus == -1) { // kernel killed child
+      printf("  Protected read: FAIL\n");
+    }
+  }
+
+  exit(0);
 }

@@ -89,3 +89,45 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+// mark the memory region starting at `addr` with length `len` as read-only
+// `addr` must be a page aligned address referring to a mapped memory page
+// `len` must be greater or equal to 1
+uint64
+sys_mprotect(void)
+{
+  uint64 p;
+  argaddr(0, &p);
+  if (PGROUNDDOWN(p) != p) {
+    return -1;
+  }
+
+  int len;
+  argint(1, &len);
+  if (len <= 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+// mark the memory region starting at `addr` with length `len` as read-write
+// `addr` must be a page aligned address referring to a mapped memory page
+// `len` must be greater or equal to 1
+uint64
+sys_munprotect(void)
+{
+  uint64 p;
+  argaddr(0, &p);
+  if (PGROUNDDOWN(p) != p) {
+    return -1;
+  }
+
+  int len;
+  argint(1, &len);
+  if (len <= 0) {
+    return -1;
+  }
+
+  return 0;
+}
