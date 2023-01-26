@@ -108,7 +108,7 @@ sys_mprotect(void)
     return -1;
   }
 
-  return 0;
+  return setprotectwalk(p, len, PTE_W, 0);
 }
 
 // mark the memory region starting at `addr` with length `len` as read-write
@@ -129,5 +129,5 @@ sys_munprotect(void)
     return -1;
   }
 
-  return 0;
+  return setprotectwalk(p, len, PTE_W, 1);
 }

@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -439,4 +441,33 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+// Recursively set protection bits for page-table pages.
+int
+setprotectwalk(uint64 va, uint64 npages, uint64 mask, int toggle_on)
+{
+  struct proc *p = myproc();
+  pagetable_t pagetable = p->pagetable;
+  pte_t *pte;
+
+  for (uint64 addr = va; addr < va + npages * PGSIZE; addr += PGSIZE) {
+    if ((pte = walk(pagetable, addr, 0)) == 0) {
+      return -1;
+    }
+    if ((*pte & PTE_V) == 0) {
+      return -1;
+    }
+  }
+  for (uint64 addr = va; addr < va + npages * PGSIZE; addr += PGSIZE) {
+    if ((pte = walk(pagetable, addr, 0)) == 0) {
+      panic("setprotectwalk: pte should exist");
+    }
+    if (toggle_on == 1) {
+      *pte |= mask;
+    } else {
+      *pte &= (~mask);
+    }
+  }
+  return 0;
 }
